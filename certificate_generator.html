@@ -320,6 +320,10 @@
                 emailInput.value = '';
                 nationalityInput.value = '';
 
+                setTimeout(() => {
+                    window.location.href = "share_success.html";
+                }, 300); // 1 second delay
+
             } catch (error) {
                 console.error('Error:', error);
                 errorMessage.textContent = 'Failed to generate certificate. Please try again.';
