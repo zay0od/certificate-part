@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gray Matrix Effect</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        .matrix-input {
+            position: relative;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 1;
+            margin-top: 10px;
+        }
+
+        .flexible-text-box {
+            width: 100%;
+            padding: 20px;
+            font-size: 16px;
+            color: #0f0;
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            border-radius: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            text-align: center;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-weight: normal;
+            text-align: center;
+        }
+
+        .input-field {
+            width: 80%;
+            padding: 10px;
+            margin: 5px 0;
+            font-size: 16px;
+            color: #0f0;
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: 'Courier New', Courier, monospace;
+            text-align: center;
+        }
+
+        .input-field::placeholder {
+            color: #0f0;
+        }
+
+        .generate-button {
+            width: 80%;
+            padding: 12px;
+            margin: 15px 0;
+            font-size: 18px;
+            color: #1a1a1a;
+            background-color: #0f0;
+            border: 2px solid #0f0;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            cursor: pointer;
+            animation: pulsate 1.5s infinite;
+            transition: all 0.3s;
+        }
+
+        @keyframes pulsate {
+            0% {
+                box-shadow: 0 0 10px 0 #0f0;
+            }
+
+            50% {
+                box-shadow: 0 0 20px 5px #0f0;
+            }
+
+            100% {
+                box-shadow: 0 0 10px 0 #0f0;
+            }
+        }
+
+        .generate-button:hover {
+            background-color: #1a1a1a;
+            color: #0f0;
+            border: 2px solid #b3ffb3;
+            box-shadow: 0 0 15px 5px #0f0;
+        }
+
+        .loading-text {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            z-index: 7;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        #textOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            z-index: 6;
+            overflow: hidden;
+            white-space: pre-wrap;
+            padding: 20px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="matrixCanvas"></canvas>
+
+    <!-- Layover with Streaming Text -->
+    <div id="textOverlay"></div>
+
+    <!-- Flexible Text Box -->
+    <div class="matrix-input">
+        <div class="flexible-text-box">
+            <p class="title">Generate Your Certificate</p>
+            <p class="subtitle">Thank you for participating in the UAE Codes event. Fill in your details to receive your
+                certificate.</p>
+
+            <!-- Input Fields for User Details -->
+            <input type="text" class="input-field" placeholder="Enter your Name" id="nameInput">
+            <input type="email" class="input-field" placeholder="Enter your Email" id="emailInput">
+            <input type="text" class="input-field" placeholder="Enter your Nationality" id="nationalityInput">
+
+            <!-- Generate Certificate Button -->
+            <button class="generate-button" onclick="generateCertificate()">Generate Certificate</button>
+        </div>
+        <!-- Add these elements just before the closing </div> in your flexible-text-box -->
+        <div id="errorMessage" style="display: none; color: #ff0000; margin-top: 10px; text-align: center;"></div>
+        <div id="successMessage" style="display: none; color: #0f0; margin-top: 10px; text-align: center;"></div>
+    </div>
+
+    <!-- Importing certGen.js -->
+    <script src="./certGen.js"></script>
+
+    <script>
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions to match the window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Characters to be used in the matrix effect
+        const matrixChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*+-";
+        const fontSize = 12;
+        const columns = canvas.width / fontSize;
+
+        // Array for tracking y position of each column
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        // Draw the matrix effect
+        function drawMatrix() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#0f0";
+            ctx.font = `${fontSize}px monospace`;
+
+            for (let i = 0; i < drops.length; i++) {
+                const char = matrixChars.charAt(Math.floor(Math.random() * matrixChars.length));
+                const x = i * fontSize;
+                const y = drops[i] * fontSize;
+
+                ctx.fillText(char, x, y);
+
+                if (y > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        // Loop the drawMatrix function continuously
+        setInterval(drawMatrix, 50);
+
+        // Adjust canvas size dynamically on window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drops.length = Math.floor(canvas.width / fontSize);
+            drops.fill(1);
+        });
+
+        async function generateCertificate() {
+            const nameInput = document.getElementById('nameInput');
+            const errorMessage = document.getElementById('errorMessage');
+            const name = nameInput.value.trim();
+
+            // Reset error message
+            errorMessage.style.display = 'none';
+
+            // Validate input
+            if (!name) {
+                errorMessage.textContent = 'Please enter your name';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            try {
+                // Make POST request to Flask backend
+                const response = await fetch('/generate_certificate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name: name })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate certificate');
+                }
+
+                // Get the PDF blob from the response
+                const blob = await response.blob();
+
+                // Create a download link for the PDF
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${name}_certificate.pdf`;
+                document.body.appendChild(a);
+                a.click();
+
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                // Clear the input and show success message
+                nameInput.value = '';
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = 'Certificate generated successfully!';
+                successMessage.style.display = 'block';
+
+            } catch (error) {
+                errorMessage.textContent = error.message;
+                errorMessage.style.display = 'block';
+                console.error('Error:', error);
+            }
+        }
+
+    </script>
+</body>
+
+</html>
