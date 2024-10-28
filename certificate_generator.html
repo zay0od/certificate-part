@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Certificate Generator</title>
-    <!-- Add Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
@@ -229,7 +228,7 @@
 
             // Validate name length
             if (name.length > 38) {
-                // errorMessage.textContent = 'Name should not exceed 45 characters - يجب ألا يتجاوز الاسم 45 حرفًا';
+                errorMessage.textContent = 'Name is too long';
                 errorMessage.style.display = 'block';
                 return;
             }
@@ -245,46 +244,43 @@
             try {
                 const { PDFDocument, rgb } = PDFLib;
 
-                // First, get PDF dimensions
+                // Load PDF template
                 const existingPdfBytes = await fetch('./static/certEnPDF.pdf').then(res => res.arrayBuffer());
                 const pdfDoc = await PDFDocument.load(existingPdfBytes);
                 const firstPage = pdfDoc.getPages()[0];
                 const { width: pdfWidth } = firstPage.getSize();
 
-                // Create a temporary canvas with PDF width
+                // Create canvas for name
                 const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                // Set canvas size to match PDF width
+                const context = canvas.getContext('2d');
                 canvas.width = Math.floor(pdfWidth);
-                canvas.height = 100;  // Keep height at 100
+                canvas.height = 100;
 
                 // Make background transparent
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                context.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Set text properties with Cairo SemiBold
-                ctx.fillStyle = 'black';
-                ctx.font = '500 35px "Cairo"';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                // Set text properties
+                context.fillStyle = 'black';
+                context.font = '500 35px "Cairo"';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
 
                 // Wait for font to load
-                await document.fonts.load(ctx.font);
+                await document.fonts.load(context.font);
 
-                // Draw text to canvas
-                ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+                // Draw name
+                context.fillText(name, canvas.width / 2, canvas.height / 2);
 
-                // Convert canvas to image data
+                // Get image data
                 const imageData = canvas.toDataURL('image/png');
 
-                // Embed the image
+                // Convert to URL-safe base64
+                const safeImageData = imageData.split(',')[1].replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+                // Embed image in PDF
                 const nameImage = await pdfDoc.embedPng(imageData);
-
-                // Get page dimensions
                 const { height: pdfHeight } = firstPage.getSize();
-
-                // Calculate position to place the image
-                const nameWidth = pdfWidth * 0.9; // Use 90% of PDF width
+                const nameWidth = pdfWidth * 0.9;
                 const scale = nameWidth / nameImage.width;
                 const nameHeight = nameImage.height * scale;
 
@@ -295,34 +291,30 @@
                     height: nameHeight
                 });
 
-                // Save the PDF
+                // Save PDF
                 const pdfBytes = await pdfDoc.save();
+                const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(pdfBlob);
 
-                // Create download link
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const url = URL.createObjectURL(blob);
+                // Store name
+                localStorage.setItem('certificateName', name);
+
+                // Download PDF
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = pdfUrl;
                 a.download = `${name}_certificate.pdf`;
                 document.body.appendChild(a);
                 a.click();
-
-                // Cleanup
-                URL.revokeObjectURL(url);
                 document.body.removeChild(a);
 
-                // Show success and reset form
+                // Show success message
                 successMessage.textContent = 'Certificate generated successfully!';
                 successMessage.style.display = 'block';
 
-                // Reset form
-                nameInput.value = '';
-                emailInput.value = '';
-                nationalityInput.value = '';
-
+                // Redirect to success page with image data
                 setTimeout(() => {
-                    window.location.href = "share_success.html";
-                }, 300); // 1 second delay
+                    window.location.href = `share_success.html?preview=${encodeURIComponent(safeImageData)}`;
+                }, 300);
 
             } catch (error) {
                 console.error('Error:', error);
@@ -331,29 +323,12 @@
             }
         }
 
-        // Add this to handle real-time character limit
+        // Setup name input
         function setupNameInput() {
             const nameInput = document.getElementById('nameInput');
-
             nameInput.setAttribute('maxlength', '38');
-
-            const charCounter = document.createElement('div');
-            charCounter.style.color = '#0f0';
-            charCounter.style.fontSize = '12px';
-            charCounter.style.marginTop = '5px';
-            charCounter.style.fontFamily = 'Cairo, sans-serif';
-            nameInput.parentNode.insertBefore(charCounter, nameInput.nextSibling);
-
-            function updateCounter() {
-                const remaining = 38 - nameInput.value.length;
-                // charCounter.textContent = `${remaining} characters remaining - حرف متبقي`;
-            }
-
-            nameInput.addEventListener('input', updateCounter);
-            updateCounter(); // Initial count
         }
 
-        // Call this function when the page loads
         document.addEventListener('DOMContentLoaded', setupNameInput);
     </script>
 </body>
