@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Gray Matrix Effect</title>
+    <title>Certificate Generator</title>
+    <!-- Add Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         body {
@@ -44,7 +44,7 @@
             background-color: rgba(0, 0, 0, 0.8);
             border: 2px solid #0f0;
             border-radius: 10px;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Cairo', sans-serif;
             text-align: center;
             box-sizing: border-box;
             display: flex;
@@ -75,12 +75,14 @@
             border: 2px solid #0f0;
             border-radius: 5px;
             box-sizing: border-box;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
             text-align: center;
         }
 
         .input-field::placeholder {
             color: #0f0;
+            opacity: 0.7;
         }
 
         .generate-button {
@@ -92,7 +94,7 @@
             background-color: #0f0;
             border: 2px solid #0f0;
             border-radius: 5px;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Cairo', sans-serif;
             font-weight: bold;
             cursor: pointer;
             animation: pulsate 1.5s infinite;
@@ -125,6 +127,7 @@
             margin-top: 10px;
             text-align: center;
             display: none;
+            font-family: 'Cairo', sans-serif;
         }
 
         #errorMessage {
@@ -146,7 +149,7 @@
             <p class="subtitle">Thank you for participating in the UAE Codes event. Fill in your details to receive your
                 certificate.</p>
 
-            <input type="text" class="input-field" placeholder="Enter your Name - أدخل اسمك" id="nameInput" dir="auto">
+            <input type="text" class="input-field" placeholder="Enter your Name" id="nameInput">
             <input type="email" class="input-field" placeholder="Enter your Email" id="emailInput">
             <input type="text" class="input-field" placeholder="Enter your Nationality" id="nationalityInput">
 
@@ -162,19 +165,14 @@
         const canvas = document.getElementById('matrixCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Set canvas dimensions to match the window size
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Characters to be used in the matrix effect
         const matrixChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*+-";
         const fontSize = 12;
         const columns = canvas.width / fontSize;
-
-        // Array for tracking y position of each column
         const drops = Array(Math.floor(columns)).fill(1);
 
-        // Draw the matrix effect
         function drawMatrix() {
             ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -196,10 +194,8 @@
             }
         }
 
-        // Loop the drawMatrix function continuously
         setInterval(drawMatrix, 50);
 
-        // Adjust canvas size dynamically on window resize
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -224,8 +220,24 @@
             const email = emailInput.value.trim();
             const nationality = nationalityInput.value.trim();
 
+            // Validate required fields
             if (!name || !email || !nationality) {
                 errorMessage.textContent = 'Please fill in all fields';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            // Validate name length
+            if (name.length > 38) {
+                // errorMessage.textContent = 'Name should not exceed 45 characters - يجب ألا يتجاوز الاسم 45 حرفًا';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                errorMessage.textContent = 'Please enter a valid email';
                 errorMessage.style.display = 'block';
                 return;
             }
@@ -233,51 +245,52 @@
             try {
                 const { PDFDocument, rgb } = PDFLib;
 
-                // Create a temporary canvas
+                // First, get PDF dimensions
+                const existingPdfBytes = await fetch('./static/certEnPDF.pdf').then(res => res.arrayBuffer());
+                const pdfDoc = await PDFDocument.load(existingPdfBytes);
+                const firstPage = pdfDoc.getPages()[0];
+                const { width: pdfWidth } = firstPage.getSize();
+
+                // Create a temporary canvas with PDF width
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
 
-                // Set canvas size (reduced height)
-                canvas.width = 800;
-                canvas.height = 100;  // Reduced from 200 to 100
+                // Set canvas size to match PDF width
+                canvas.width = Math.floor(pdfWidth);
+                canvas.height = 100;  // Keep height at 100
 
-                // Make background transparent by not filling it
+                // Make background transparent
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Set text properties
+                // Set text properties with Cairo SemiBold
                 ctx.fillStyle = 'black';
-                ctx.font = '48px Arial';
+                ctx.font = '500 35px "Cairo"';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
+                // Wait for font to load
+                await document.fonts.load(ctx.font);
+
                 // Draw text to canvas
-                ctx.fillText(name, canvas.width / 2, (canvas.height / 2) + 30);
+                ctx.fillText(name, canvas.width / 2, canvas.height / 2);
 
-                // Convert canvas to image data with transparency
+                // Convert canvas to image data
                 const imageData = canvas.toDataURL('image/png');
-
-                // Load the PDF
-                const existingPdfBytes = await fetch('./static/certEnPDF.pdf').then(res => res.arrayBuffer());
-                const pdfDoc = await PDFDocument.load(existingPdfBytes);
 
                 // Embed the image
                 const nameImage = await pdfDoc.embedPng(imageData);
 
-                // Get the first page
-                const pages = pdfDoc.getPages();
-                const firstPage = pages[0];
-
                 // Get page dimensions
-                const { width, height } = firstPage.getSize();
+                const { height: pdfHeight } = firstPage.getSize();
 
                 // Calculate position to place the image
-                const scale = 0.5;  // You can adjust this value to change the size
-                const nameWidth = nameImage.width * scale;
+                const nameWidth = pdfWidth * 0.9; // Use 90% of PDF width
+                const scale = nameWidth / nameImage.width;
                 const nameHeight = nameImage.height * scale;
 
                 firstPage.drawImage(nameImage, {
-                    x: (width - nameWidth) / 2,
-                    y: (height - nameHeight) / 2,
+                    x: (pdfWidth - nameWidth) / 2,
+                    y: ((pdfHeight - nameHeight) / 2) - 10,
                     width: nameWidth,
                     height: nameHeight
                 });
@@ -313,6 +326,31 @@
                 errorMessage.style.display = 'block';
             }
         }
+
+        // Add this to handle real-time character limit
+        function setupNameInput() {
+            const nameInput = document.getElementById('nameInput');
+
+            nameInput.setAttribute('maxlength', '38');
+
+            const charCounter = document.createElement('div');
+            charCounter.style.color = '#0f0';
+            charCounter.style.fontSize = '12px';
+            charCounter.style.marginTop = '5px';
+            charCounter.style.fontFamily = 'Cairo, sans-serif';
+            nameInput.parentNode.insertBefore(charCounter, nameInput.nextSibling);
+
+            function updateCounter() {
+                const remaining = 38 - nameInput.value.length;
+                // charCounter.textContent = `${remaining} characters remaining - حرف متبقي`;
+            }
+
+            nameInput.addEventListener('input', updateCounter);
+            updateCounter(); // Initial count
+        }
+
+        // Call this function when the page loads
+        document.addEventListener('DOMContentLoaded', setupNameInput);
     </script>
 </body>
 
