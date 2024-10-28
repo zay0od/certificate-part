@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Gray Matrix Effect</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -117,46 +120,19 @@
             box-shadow: 0 0 15px 5px #0f0;
         }
 
-        .loading-text {
+        #errorMessage,
+        #successMessage {
+            margin-top: 10px;
+            text-align: center;
             display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 20px;
-            color: #0f0;
-            font-family: 'Courier New', Courier, monospace;
-            z-index: 7;
-            animation: blink 2s infinite;
         }
 
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 0;
-            }
-
-            50% {
-                opacity: 1;
-            }
+        #errorMessage {
+            color: #ff0000;
         }
 
-        #textOverlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+        #successMessage {
             color: #0f0;
-            font-family: 'Courier New', Courier, monospace;
-            z-index: 6;
-            overflow: hidden;
-            white-space: pre-wrap;
-            padding: 20px;
-            font-size: 12px;
         }
     </style>
 </head>
@@ -164,33 +140,25 @@
 <body>
     <canvas id="matrixCanvas"></canvas>
 
-    <!-- Layover with Streaming Text -->
-    <div id="textOverlay"></div>
-
-    <!-- Flexible Text Box -->
     <div class="matrix-input">
         <div class="flexible-text-box">
             <p class="title">Generate Your Certificate</p>
             <p class="subtitle">Thank you for participating in the UAE Codes event. Fill in your details to receive your
                 certificate.</p>
 
-            <!-- Input Fields for User Details -->
-            <input type="text" class="input-field" placeholder="Enter your Name" id="nameInput">
+            <input type="text" class="input-field" placeholder="Enter your Name - أدخل اسمك" id="nameInput" dir="auto">
             <input type="email" class="input-field" placeholder="Enter your Email" id="emailInput">
             <input type="text" class="input-field" placeholder="Enter your Nationality" id="nationalityInput">
 
-            <!-- Generate Certificate Button -->
             <button class="generate-button" onclick="generateCertificate()">Generate Certificate</button>
+
+            <div id="errorMessage"></div>
+            <div id="successMessage"></div>
         </div>
-        <!-- Add these elements just before the closing </div> in your flexible-text-box -->
-        <div id="errorMessage" style="display: none; color: #ff0000; margin-top: 10px; text-align: center;"></div>
-        <div id="successMessage" style="display: none; color: #0f0; margin-top: 10px; text-align: center;"></div>
     </div>
 
-    <!-- Importing certGen.js -->
-    <script src="./certGen.js"></script>
-
     <script>
+        // Matrix Animation Code
         const canvas = document.getElementById('matrixCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -239,41 +207,87 @@
             drops.fill(1);
         });
 
+        // Certificate Generation Code
         async function generateCertificate() {
             const nameInput = document.getElementById('nameInput');
+            const emailInput = document.getElementById('emailInput');
+            const nationalityInput = document.getElementById('nationalityInput');
             const errorMessage = document.getElementById('errorMessage');
-            const name = nameInput.value.trim();
+            const successMessage = document.getElementById('successMessage');
 
-            // Reset error message
+            // Reset messages
             errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
 
-            // Validate input
-            if (!name) {
-                errorMessage.textContent = 'Please enter your name';
+            // Get and validate inputs
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const nationality = nationalityInput.value.trim();
+
+            if (!name || !email || !nationality) {
+                errorMessage.textContent = 'Please fill in all fields';
                 errorMessage.style.display = 'block';
                 return;
             }
 
             try {
-                // Make POST request to Flask backend
-                const response = await fetch('/generate_certificate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ name: name })
+                const { PDFDocument, rgb } = PDFLib;
+
+                // Create a temporary canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // Set canvas size (reduced height)
+                canvas.width = 800;
+                canvas.height = 100;  // Reduced from 200 to 100
+
+                // Make background transparent by not filling it
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Set text properties
+                ctx.fillStyle = 'black';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Draw text to canvas
+                ctx.fillText(name, canvas.width / 2, (canvas.height / 2) + 30);
+
+                // Convert canvas to image data with transparency
+                const imageData = canvas.toDataURL('image/png');
+
+                // Load the PDF
+                const existingPdfBytes = await fetch('./static/certEnPDF.pdf').then(res => res.arrayBuffer());
+                const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+                // Embed the image
+                const nameImage = await pdfDoc.embedPng(imageData);
+
+                // Get the first page
+                const pages = pdfDoc.getPages();
+                const firstPage = pages[0];
+
+                // Get page dimensions
+                const { width, height } = firstPage.getSize();
+
+                // Calculate position to place the image
+                const scale = 0.5;  // You can adjust this value to change the size
+                const nameWidth = nameImage.width * scale;
+                const nameHeight = nameImage.height * scale;
+
+                firstPage.drawImage(nameImage, {
+                    x: (width - nameWidth) / 2,
+                    y: (height - nameHeight) / 2,
+                    width: nameWidth,
+                    height: nameHeight
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to generate certificate');
-                }
+                // Save the PDF
+                const pdfBytes = await pdfDoc.save();
 
-                // Get the PDF blob from the response
-                const blob = await response.blob();
-
-                // Create a download link for the PDF
-                const url = window.URL.createObjectURL(blob);
+                // Create download link
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `${name}_certificate.pdf`;
@@ -281,22 +295,24 @@
                 a.click();
 
                 // Cleanup
-                window.URL.revokeObjectURL(url);
+                URL.revokeObjectURL(url);
                 document.body.removeChild(a);
 
-                // Clear the input and show success message
-                nameInput.value = '';
-                const successMessage = document.getElementById('successMessage');
+                // Show success and reset form
                 successMessage.textContent = 'Certificate generated successfully!';
                 successMessage.style.display = 'block';
 
+                // Reset form
+                nameInput.value = '';
+                emailInput.value = '';
+                nationalityInput.value = '';
+
             } catch (error) {
-                errorMessage.textContent = error.message;
-                errorMessage.style.display = 'block';
                 console.error('Error:', error);
+                errorMessage.textContent = 'Failed to generate certificate. Please try again.';
+                errorMessage.style.display = 'block';
             }
         }
-
     </script>
 </body>
 
